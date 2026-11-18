@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>指标语义层 · Metric Semantic Layer</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+<header>
+  <h1>指标语义层</h1>
+  <div class="user-box">
+    当前用户：
+    <select id="user-select">
+      <option value="admin">admin（管理员）</option>
+      <option value="alice" selected>alice（分析师）</option>
+      <option value="bob">bob（只读访客）</option>
+    </select>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="metrics">指标定义</button>
+  <button class="tab" data-tab="lineage">血缘</button>
+  <button class="tab" data-tab="diff">版本差异</button>
+  <button class="tab" data-tab="query">查询与导出</button>
+  <button class="tab" data-tab="cache">缓存与审计</button>
+  <button class="tab" data-tab="admin">权限/发布管控</button>
+</nav>
+
+<main>
+  <!-- 指标定义 -->
+  <section id="tab-metrics" class="panel active">
+    <div class="toolbar">
+      <button id="btn-refresh-metrics">刷新</button>
+      <button id="btn-new-metric" class="primary">登记新指标</button>
+    </div>
+    <table id="metrics-table">
+      <thead><tr>
+        <th>编码</th><th>名称</th><th>最新版本</th><th>状态</th><th>聚合</th>
+        <th>度量</th><th>粒度</th><th>可加性</th><th>更新时间</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="metric-detail" class="card hidden"></div>
+
+    <dialog id="metric-dialog">
+      <form method="dialog" id="metric-form">
+        <h3>登记指标 / 新建草稿</h3>
+        <div class="form-grid">
+          <label>编码 <input name="code" required placeholder="如 gross_profit" /></label>
+          <label>名称 <input name="name" required /></label>
+          <label>负责人 <input name="owner" value="alice" required /></label>
+          <label>来源表 <select name="source_table" id="source-select"></select></label>
+          <label>聚合函数
+            <select name="agg_func">
+              <option>SUM</option><option>COUNT</option><option>COUNT_DISTINCT</option>
+              <option>AVG</option><option>MAX</option><option>MIN</option><option>RATIO</option>
+            </select>
+          </label>
+          <label>度量字段 <input name="measure_field" value="sales_amount" required /></label>
+          <label>时间粒度
+            <select name="time_grain">
+              <option>day</option><option>week</option><option>month</option>
+              <option>quarter</option><option>year</option>
+            </select>
+          </label>
+          <label>可加性
+            <select name="additivity">
+              <option value="additive">additive</option>
+              <option value="semi_additive">semi_additive</option>
+              <option value="non_additive">non_additive</option>
+            </select>
+          </label>
+          <label>维度（逗号分隔）<input name="dimensions" value="region,category,channel" /></label>
+          <label>RATIO 分子 <input name="ratio_num_field" placeholder="仅 RATIO" /></label>
+          <label>RATIO 分母 <input name="ratio_den_field" placeholder="仅 RATIO" /></label>
+          <label class="span2">过滤条件 JSON <input name="filters" value="[]" /></label>
+          <label class="span2">说明 <textarea name="description" rows="2"></textarea></label>
+          <label class="span2">变更说明 <input name="change_note" placeholder="首次登记 / 改版原因" /></label>
+        </div>
+        <div class="dialog-actions">
+          <button value="cancel">取消</button>
+          <button id="metric-submit" value="submit" class="primary">提交草稿并发布</button>
+        </div>
+      </form>
+    </dialog>
+  </section>
+
+  <!-- 血缘 -->
+  <section id="tab-lineage" class="panel">
+    <div class="toolbar">
+      <select id="lineage-metric"></select>
+      <select id="lineage-version"></select>
+      <button id="btn-lineage" class="primary">查看血缘</button>
+    </div>
+    <div id="lineage-out" class="card"></div>
+  </section>
+
+  <!-- 版本差异 -->
+  <section id="tab-diff" class="panel">
+    <div class="toolbar">
+      <select id="diff-metric"></select>
+      <label>左版本 <select id="diff-left"></select></label>
+      <label>右版本 <select id="diff-right"></select></label>
+      <button id="btn-diff" class="primary">对比</button>
+    </div>
+    <div id="diff-out" class="card"></div>
+  </section>
+
+  <!-- 查询 -->
+  <section id="tab-query" class="panel">
+    <div class="toolbar form-inline">
+      <label>指标 <select id="query-metric"></select></label>
+      <label>版本 <select id="query-version"></select></label>
+      <label>粒度
+        <select id="query-grain">
+          <option>day</option><option>week</option><option selected>month</option>
+          <option>quarter</option><option>year</option>
+        </select>
+      </label>
+      <label>维度 <input id="query-dims" placeholder="region,category" /></label>
+      <label>起 <input type="date" id="query-from" value="2026-01-01" /></label>
+      <label>止 <input type="date" id="query-to" value="2026-03-31" /></label>
+      <label><input type="checkbox" id="query-cache" checked /> 用缓存</label>
+      <button id="btn-query" class="primary">查询</button>
+      <button id="btn-export-csv">导出 CSV</button>
+      <button id="btn-export-json">导出 JSON</button>
+    </div>
+    <div id="query-meta" class="card hidden"></div>
+    <div class="table-wrap">
+      <table id="query-table"><thead></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <!-- 缓存与审计 -->
+  <section id="tab-cache" class="panel">
+    <div class="toolbar">
+      <button id="btn-cache-list">刷新缓存</button>
+      <button id="btn-cache-clear">清空全部缓存</button>
+      <button id="btn-audit">刷新审计</button>
+    </div>
+    <h3>查询缓存</h3>
+    <table id="cache-table">
+      <thead><tr><th>缓存键</th><th>指标</th><th>版本</th><th>命中次数</th><th>创建时间</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <h3>审计日志</h3>
+    <table id="audit-table">
+      <thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>详情</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- 权限/发布管控 -->
+  <section id="tab-admin" class="panel">
+    <div class="toolbar">
+      <select id="admin-metric"></select>
+      <label>历史版本 <select id="admin-version"></select></label>
+      <button id="btn-rollback">回滚为新草稿</button>
+      <button id="btn-publish-draft">发布当前草稿</button>
+      <button id="btn-deprecate">下线指标</button>
+      <button id="btn-retry-conflict">重试发布冲突草稿</button>
+    </div>
+    <div id="admin-out" class="card"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
